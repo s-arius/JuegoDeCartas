@@ -1,50 +1,61 @@
-using Unity.Netcode;
 using UnityEngine;
+using Unity.Netcode;
 
+[RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class NetworkPlayer : NetworkBehaviour
 {
-    public NetworkVariable<int> score = new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
-    public NetworkVariable<string> playerName = new NetworkVariable<string>("Player");
+    [Header("Movimiento")]
+    public float velocidad = 5f;
 
-    private NetworkGameManager gameManager;
+    [Header("Puntuación")]
+    public NetworkVariable<int> score = new NetworkVariable<int>(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
 
-    void Start()
+    private Rigidbody2D rb;
+
+    private void Awake()
     {
-        gameManager = FindObjectOfType<NetworkGameManager>();
-
-        if (IsOwner)
-        {
-            // set local name if you want
-            // playerName.Value = "P" + NetworkManager.Singleton.LocalClientId;
-        }
-
-        score.OnValueChanged += (oldv, newv) => {
-            UIManager.Instance?.UpdateScoreDisplay(this);
-        };
+        rb = GetComponent<Rigidbody2D>();
+        rb.bodyType = RigidbodyType2D.Kinematic;
     }
 
-    // Called by client to request flip of a card with given NetworkObjectId
-    [ServerRpc(RequireOwnership = false)]
-    public void RequestFlipServerRpc(ulong cardNetworkObjectId, ServerRpcParams rpcParams = default)
+    private void Update()
     {
-        if (!IsServer) return;
-        // find card by id
+        if (!IsOwner) return;
+
+        // Movimiento top-down
+        Vector3 dir = new Vector3(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+        dir.Normalize();
+        transform.position += dir * velocidad * Time.deltaTime;
+    }
+
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (!IsOwner) return;
+
+        NetworkCard card = other.GetComponent<NetworkCard>();
+        if (card != null && !card.isFaceUp.Value && !card.isMatched.Value)
+        {
+            RequestFlipServerRpc(card.NetworkObjectId);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    void RequestFlipServerRpc(ulong cardNetworkObjectId, ServerRpcParams rpcParams = default)
+    {
         var no = NetworkManager.Singleton.SpawnManager.SpawnedObjects[cardNetworkObjectId];
         if (no != null)
         {
-            var card = no.GetComponent<NetworkCard>();
+            NetworkCard card = no.GetComponent<NetworkCard>();
             if (card != null && !card.isFaceUp.Value && !card.isMatched.Value)
             {
-                gameManager.RequestFlip(card, rpcParams.Receive.SenderClientId);
+                NetworkGameManager gm = FindObjectOfType<NetworkGameManager>();
+                if (gm != null)
+                    gm.CardFlipped(card, rpcParams.Receive.SenderClientId);
             }
         }
-    }
-
-    [ServerRpc(RequireOwnership = false)]
-    public void AddScoreServerRpc(int amount)
-    {
-        // only server writes the NetworkVariable, but this ServerRpc runs on server
-        score.Value += amount;
-        // update UI on clients via UIManager listening to NetworkVariable change
     }
 }

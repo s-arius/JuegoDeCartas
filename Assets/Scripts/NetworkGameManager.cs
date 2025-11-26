@@ -22,9 +22,6 @@ public class NetworkGameManager : NetworkBehaviour
     private NetworkCard firstFlipped = null;
     private NetworkCard secondFlipped = null;
 
-    // Keep track of which client is current turn (optional)
-    private ulong currentTurnClientId = 0;
-
     public override void OnNetworkSpawn()
     {
         if (IsServer)
@@ -35,12 +32,8 @@ public class NetworkGameManager : NetworkBehaviour
 
     IEnumerator SetupBoardRoutine()
     {
-        yield return null; // let network initialize
+        yield return null; // Espera a que la red inicialice
         SetupBoard();
-        // assign first turn to host
-        if (NetworkManager.ConnectedClientsList.Count > 0)
-            currentTurnClientId = NetworkManager.ConnectedClientsList[0].ClientId;
-        UpdateTurnClientRpc(currentTurnClientId);
     }
 
     void SetupBoard()
@@ -52,7 +45,7 @@ public class NetworkGameManager : NetworkBehaviour
             return;
         }
 
-        // create list of ids (pairs)
+        // Crear IDs para pares
         List<int> ids = new List<int>();
         int pairs = total / 2;
         for (int i = 0; i < pairs; i++)
@@ -61,11 +54,11 @@ public class NetworkGameManager : NetworkBehaviour
             ids.Add(i);
         }
 
-        // shuffle ids
+        // Mezclar IDs
         System.Random rng = new System.Random();
         ids = ids.OrderBy(a => rng.Next()).ToList();
 
-        // spawn cards in grid
+        // Spawn cartas en la grilla
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < columns; c++)
@@ -74,7 +67,7 @@ public class NetworkGameManager : NetworkBehaviour
                 int id = ids[index];
                 Vector3 pos = new Vector3(c * spacingX, -r * spacingY, 0);
                 GameObject go = Instantiate(cardPrefab, pos, Quaternion.identity, boardParent);
-                var no = go.GetComponent<NetworkObject>();
+                NetworkObject no = go.GetComponent<NetworkObject>();
                 no.Spawn(true);
 
                 NetworkCard nc = go.GetComponent<NetworkCard>();
@@ -84,13 +77,10 @@ public class NetworkGameManager : NetworkBehaviour
         }
     }
 
-    // Called by cards when a client requests flip
-    public void RequestFlip(NetworkCard card, ulong clientId)
+    // Método que llama NetworkPlayer al tocar una carta
+    public void CardFlipped(NetworkCard card, ulong clientId)
     {
-        if (!IsServer) return;
-        // Only allow flip if it's that client's turn (optional rule). Remove check if you want simultaneous play:
-        if (currentTurnClientId != clientId)
-            return;
+        if (!IsServer || card == null || card.isFaceUp.Value || card.isMatched.Value) return;
 
         if (firstFlipped == null)
         {
@@ -107,69 +97,47 @@ public class NetworkGameManager : NetworkBehaviour
 
     IEnumerator CheckMatchRoutine(ulong clientId)
     {
-        yield return new WaitForSeconds(0.2f); // small buffer for visuals
+        yield return new WaitForSeconds(0.2f);
 
         if (firstFlipped.cardId.Value == secondFlipped.cardId.Value)
         {
-            // match: award points to clientId
-            AddScoreToPlayer(clientId, 1); // 1 punto por pareja (ajustable)
+            // Coincidencia: sumar puntos al jugador
+            AddScoreToPlayer(clientId, 1);
 
-            // disable both cards
+            // Marcar cartas como emparejadas
             firstFlipped.SetMatchedClientRpc();
             secondFlipped.SetMatchedClientRpc();
         }
         else
         {
-            // mismatch: reveal for a bit then hide
+            // No coinciden: mostrar un momento y luego ocultar
             yield return new WaitForSeconds(mismatchRevealTime);
             firstFlipped.HideClientRpc();
             secondFlipped.HideClientRpc();
-
-            // optionally change turn to other player
-            SwitchTurn();
         }
 
         firstFlipped = null;
         secondFlipped = null;
 
-        // check endgame: all matched?
+        // Comprobar fin de juego
         if (spawnedCards.All(c => c.isMatched.Value))
         {
-            // handle end of game
             GameOverClientRpc();
         }
     }
 
     void AddScoreToPlayer(ulong clientId, int amount)
     {
-        // Find player's NetworkPlayer component and add score via ServerRpc
-        if (NetworkManager.ConnectedClients.TryGetValue(clientId, out var client))
+        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var client))
         {
-            var go = client.PlayerObject != null ? client.PlayerObject.GameObject : null;
+            var go = client.PlayerObject != null ? client.PlayerObject.gameObject : null;
             if (go != null)
             {
                 var np = go.GetComponent<NetworkPlayer>();
                 if (np != null)
-                    np.AddScoreServerRpc(amount);
+                    np.score.Value += amount; // NetworkVariable actualiza automáticamente en todos los clientes
             }
         }
-    }
-
-    void SwitchTurn()
-    {
-        // simple: pick next connected client
-        var clients = NetworkManager.ConnectedClientsList;
-        if (clients.Count < 2) return;
-        int idx = clients.FindIndex(c => c.ClientId == currentTurnClientId);
-        idx = (idx + 1) % clients.Count;
-        currentTurnClientId = clients[idx].ClientId;
-        UpdateTurnClientRpc(currentTurnClientId);
-    }
-
-    [ClientRpc]
-    void UpdateTurnClientRpc(ulong clientId)
-    {
-        UIManager.Instance?.SetCurrentTurn(clientId);
     }
 
     [ClientRpc]
