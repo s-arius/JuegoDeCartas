@@ -15,7 +15,6 @@ public class NetworkCard : NetworkBehaviour
     private SpriteRenderer sr;
     private Collider2D col;
 
-    // Guardamos la escala original
     private Vector3 originalScale;
 
     private void Awake()
@@ -23,14 +22,13 @@ public class NetworkCard : NetworkBehaviour
         sr = GetComponent<SpriteRenderer>();
         col = GetComponent<Collider2D>();
 
-        originalScale = transform.localScale;   // <<< IMPORTANTE
+        originalScale = transform.localScale;
     }
 
     public override void OnNetworkSpawn()
     {
         UpdateVisual();
 
-        // Usamos nombres únicos para los parámetros
         isFaceUp.OnValueChanged += (oldValue, newValue) => UpdateVisual();
         cardId.OnValueChanged += (oldId, newId) => UpdateVisual();
         isMatched.OnValueChanged += (oldValue, newValue) =>
@@ -39,7 +37,6 @@ public class NetworkCard : NetworkBehaviour
         };
     }
 
-    // ====================== VISUAL ======================
     void UpdateVisual()
     {
         if (isFaceUp.Value && cardId.Value >= 0)
@@ -53,15 +50,11 @@ public class NetworkCard : NetworkBehaviour
         if (col != null) col.enabled = false;
     }
 
-    // ============================================================
-    //               ANIMACIÓN DE GIRO
-    // ============================================================
     private IEnumerator FlipRoutine()
     {
         float halfTime = 0.12f;
         float t = 0f;
 
-        // ----- Cerrar carta -----
         while (t < halfTime)
         {
             t += Time.deltaTime;
@@ -76,10 +69,8 @@ public class NetworkCard : NetworkBehaviour
             yield return null;
         }
 
-        // Cambiar sprite
         UpdateVisual();
 
-        // ----- Abrir carta -----
         t = 0f;
         while (t < halfTime)
         {
@@ -95,7 +86,6 @@ public class NetworkCard : NetworkBehaviour
             yield return null;
         }
 
-        // Asegura que queda EXACTAMENTE igual
         transform.localScale = originalScale;
     }
 
@@ -105,9 +95,7 @@ public class NetworkCard : NetworkBehaviour
         StartCoroutine(FlipRoutine());
     }
 
-    // ============================================================
-    //                LÓGICA DE RED (SINCRONIZADA)
-    // ============================================================
+
     [ServerRpc(RequireOwnership = false)]
     public void RevealServerRpc()
     {

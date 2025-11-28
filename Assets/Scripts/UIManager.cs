@@ -60,9 +60,9 @@ public class UIManager : MonoBehaviour
         winnerPanel.SetActive(true);
 
         if (p1Score > p2Score)
-            winnerText.text = "¡Gana Player 1!";
+            winnerText.text = "¡Gana el Jugador 1!";
         else if (p2Score > p1Score)
-            winnerText.text = "¡Gana Player 2!";
+            winnerText.text = "¡Gana el Jugador 2!";
         else
             winnerText.text = "¡Empate!";
     }
