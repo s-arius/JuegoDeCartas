@@ -2,118 +2,68 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using Unity.Netcode;
-using System.Collections.Generic;
 
 public class UIManager : MonoBehaviour
 {
     public static UIManager Instance;
 
-    [Header("UI Elements")]
-    public TMP_Text turnText;
-    public TMP_Text gameOverText;
-    public Transform scoresParent;
-    public GameObject scoreEntryPrefab; // Prefab con TMP_Text para nombre y puntuación
+    [Header("Score UI")]
+    public TMP_Text p1ScoreText;
+    public TMP_Text p2ScoreText;
+
+    [Header("Winner Panel")]
+    public GameObject winnerPanel;
+    public TMP_Text winnerText;
 
     [Header("Network Buttons")]
     public Button hostButton;
     public Button clientButton;
-    public Button disconnectButton;
 
-    private Dictionary<ulong, GameObject> scoreEntries = new Dictionary<ulong, GameObject>();
+    [Header("Otros Paneles")]
+    public GameObject ScorePanel;
+    public GameObject Panel;
 
     private void Awake()
     {
-        if (Instance == null)
-            Instance = this;
-        else
-            Destroy(gameObject);
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
     }
 
     private void Start()
     {
-        // Conectar botones a funciones públicas
         if (hostButton != null) hostButton.onClick.AddListener(StartHost);
         if (clientButton != null) clientButton.onClick.AddListener(StartClient);
-        if (disconnectButton != null) disconnectButton.onClick.AddListener(Disconnect);
 
-        gameOverText.gameObject.SetActive(false);
+        if (winnerPanel != null) winnerPanel.SetActive(false);
 
-        // Crear score entries para clientes ya conectados
-        if (NetworkManager.Singleton != null)
-        {
-            foreach (var c in NetworkManager.Singleton.ConnectedClientsList)
-            {
-                CreateOrUpdateScoreEntry(c.ClientId);
-            }
-
-            NetworkManager.Singleton.OnClientConnectedCallback += (id) => CreateOrUpdateScoreEntry(id);
-            NetworkManager.Singleton.OnClientDisconnectCallback += (id) =>
-            {
-                if (scoreEntries.ContainsKey(id))
-                {
-                    Destroy(scoreEntries[id]);
-                    scoreEntries.Remove(id);
-                }
-            };
-        }
+        UpdateScores(0, 0);
     }
 
-    // =================== Botones de red ===================
-    public void StartHost()
+    public void StartHost() => NetworkManager.Singleton.StartHost();
+    public void StartClient() => NetworkManager.Singleton.StartClient();
+
+    public void UpdateScores(int p1, int p2)
     {
-        NetworkManager.Singleton.StartHost();
+        if (p1ScoreText != null) p1ScoreText.text = $"P1: {p1}";
+        if (p2ScoreText != null) p2ScoreText.text = $"P2: {p2}";
     }
 
-    public void StartClient()
+    public void ShowWinner(int p1Score, int p2Score)
     {
-        NetworkManager.Singleton.StartClient();
-    }
+        if (winnerPanel == null || winnerText == null) return;
 
-    public void Disconnect()
-    {
-        NetworkManager.Singleton.Shutdown();
-    }
+        if (ScorePanel != null) ScorePanel.SetActive(false);
+        if (Panel != null) Panel.SetActive(false);
+        if (hostButton != null) hostButton.gameObject.SetActive(false);
+        if (clientButton != null) clientButton.gameObject.SetActive(false);
 
-    // =================== UI de juego ===================
-    void CreateOrUpdateScoreEntry(ulong clientId)
-    {
-        if (scoreEntries.ContainsKey(clientId)) return;
+        winnerPanel.SetActive(true);
 
-        GameObject go = Instantiate(scoreEntryPrefab, scoresParent);
-        TMP_Text[] texts = go.GetComponentsInChildren<TMP_Text>();
-        if (texts.Length >= 2)
-        {
-            texts[0].text = $"Player {clientId}";
-            texts[1].text = "Score: 0";
-        }
-
-        scoreEntries.Add(clientId, go);
-    }
-
-    public void UpdateScoreDisplay(ulong clientId, int score)
-    {
-        if (!scoreEntries.ContainsKey(clientId)) CreateOrUpdateScoreEntry(clientId);
-
-        GameObject go = scoreEntries[clientId];
-        TMP_Text[] texts = go.GetComponentsInChildren<TMP_Text>();
-        if (texts.Length >= 2)
-        {
-            texts[1].text = $"Score: {score}";
-        }
-    }
-
-    public void SetCurrentTurn(ulong clientId)
-    {
-        if (turnText != null)
-            turnText.text = $"Turno: Player {clientId}";
-    }
-
-    public void ShowGameOver()
-    {
-        if (gameOverText != null)
-        {
-            gameOverText.gameObject.SetActive(true);
-            gameOverText.text = "Juego terminado!";
-        }
+        if (p1Score > p2Score)
+            winnerText.text = "¡Gana Player 1!";
+        else if (p2Score > p1Score)
+            winnerText.text = "¡Gana Player 2!";
+        else
+            winnerText.text = "¡Empate!";
     }
 }

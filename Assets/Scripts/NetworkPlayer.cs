@@ -4,15 +4,7 @@ using Unity.Netcode;
 [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class NetworkPlayer : NetworkBehaviour
 {
-    [Header("Movimiento")]
     public float velocidad = 5f;
-
-    [Header("Puntuación")]
-    public NetworkVariable<int> score = new NetworkVariable<int>(
-        0,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
 
     private Rigidbody2D rb;
 
@@ -26,7 +18,6 @@ public class NetworkPlayer : NetworkBehaviour
     {
         if (!IsOwner) return;
 
-        // Movimiento top-down
         Vector3 dir = new Vector3(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
         dir.Normalize();
         transform.position += dir * velocidad * Time.deltaTime;
@@ -37,24 +28,23 @@ public class NetworkPlayer : NetworkBehaviour
         if (!IsOwner) return;
 
         NetworkCard card = other.GetComponent<NetworkCard>();
-        if (card != null && !card.isFaceUp.Value && !card.isMatched.Value)
+        if (card != null)
         {
             RequestFlipServerRpc(card.NetworkObjectId);
         }
     }
 
     [ServerRpc(RequireOwnership = false)]
-    void RequestFlipServerRpc(ulong cardNetworkObjectId, ServerRpcParams rpcParams = default)
+    void RequestFlipServerRpc(ulong cardNetworkId, ServerRpcParams rpcParams = default)
     {
-        var no = NetworkManager.Singleton.SpawnManager.SpawnedObjects[cardNetworkObjectId];
-        if (no != null)
+        var obj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[cardNetworkId];
+        if (obj != null)
         {
-            NetworkCard card = no.GetComponent<NetworkCard>();
-            if (card != null && !card.isFaceUp.Value && !card.isMatched.Value)
+            NetworkCard card = obj.GetComponent<NetworkCard>();
+            if (card != null)
             {
                 NetworkGameManager gm = FindObjectOfType<NetworkGameManager>();
-                if (gm != null)
-                    gm.CardFlipped(card, rpcParams.Receive.SenderClientId);
+                gm.CardFlipped(card, rpcParams.Receive.SenderClientId);
             }
         }
     }

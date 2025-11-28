@@ -14,25 +14,43 @@ public class NetworkGameManager : NetworkBehaviour
     public float spacingX = 1.5f;
     public float spacingY = 2f;
 
+    public Vector3 boardStartPosition = new Vector3(-3f, 3f, 0f);
+
     [Header("Game")]
     public float mismatchRevealTime = 1.0f;
 
-    // Server-side state
+    public NetworkVariable<int> scoreP1 = new NetworkVariable<int>(0);
+    public NetworkVariable<int> scoreP2 = new NetworkVariable<int>(0);
+
+    public static NetworkGameManager Instance;
+
     private List<NetworkCard> spawnedCards = new List<NetworkCard>();
-    private NetworkCard firstFlipped = null;
-    private NetworkCard secondFlipped = null;
+
+    private Dictionary<ulong, NetworkCard> firstCard = new Dictionary<ulong, NetworkCard>();
+    private Dictionary<ulong, NetworkCard> secondCard = new Dictionary<ulong, NetworkCard>();
+
+    private void Awake()
+    {
+        Instance = this;
+    }
 
     public override void OnNetworkSpawn()
     {
         if (IsServer)
-        {
             StartCoroutine(SetupBoardRoutine());
-        }
+
+        scoreP1.OnValueChanged += (_, __) => UpdateUI();
+        scoreP2.OnValueChanged += (_, __) => UpdateUI();
+    }
+
+    void UpdateUI()
+    {
+        UIManager.Instance?.UpdateScores(scoreP1.Value, scoreP2.Value);
     }
 
     IEnumerator SetupBoardRoutine()
     {
-        yield return null; // Espera a que la red inicialice
+        yield return null;
         SetupBoard();
     }
 
@@ -45,52 +63,53 @@ public class NetworkGameManager : NetworkBehaviour
             return;
         }
 
-        // Crear IDs para pares
         List<int> ids = new List<int>();
         int pairs = total / 2;
+
         for (int i = 0; i < pairs; i++)
         {
             ids.Add(i);
             ids.Add(i);
         }
 
-        // Mezclar IDs
-        System.Random rng = new System.Random();
-        ids = ids.OrderBy(a => rng.Next()).ToList();
+        ids = ids.OrderBy(x => Random.value).ToList();
 
-        // Spawn cartas en la grilla
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < columns; c++)
             {
                 int index = r * columns + c;
                 int id = ids[index];
-                Vector3 pos = new Vector3(c * spacingX, -r * spacingY, 0);
+
+                Vector3 pos = boardStartPosition + new Vector3(c * spacingX, -r * spacingY, 0);
+
                 GameObject go = Instantiate(cardPrefab, pos, Quaternion.identity, boardParent);
                 NetworkObject no = go.GetComponent<NetworkObject>();
                 no.Spawn(true);
 
                 NetworkCard nc = go.GetComponent<NetworkCard>();
                 nc.SetCardIdServerRpc(id);
+
                 spawnedCards.Add(nc);
             }
         }
     }
 
-    // Método que llama NetworkPlayer al tocar una carta
     public void CardFlipped(NetworkCard card, ulong clientId)
     {
-        if (!IsServer || card == null || card.isFaceUp.Value || card.isMatched.Value) return;
+        if (!IsServer) return;
+        if (card == null || card.isFaceUp.Value || card.isMatched.Value) return;
 
-        if (firstFlipped == null)
+        if (secondCard.ContainsKey(clientId) && secondCard[clientId] != null)
+            return;
+
+        card.RevealServerRpc();
+
+        if (!firstCard.ContainsKey(clientId) || firstCard[clientId] == null)
+            firstCard[clientId] = card;
+        else
         {
-            firstFlipped = card;
-            card.RevealClientRpc();
-        }
-        else if (secondFlipped == null && card != firstFlipped)
-        {
-            secondFlipped = card;
-            card.RevealClientRpc();
+            secondCard[clientId] = card;
             StartCoroutine(CheckMatchRoutine(clientId));
         }
     }
@@ -99,50 +118,47 @@ public class NetworkGameManager : NetworkBehaviour
     {
         yield return new WaitForSeconds(0.2f);
 
-        if (firstFlipped.cardId.Value == secondFlipped.cardId.Value)
-        {
-            // Coincidencia: sumar puntos al jugador
-            AddScoreToPlayer(clientId, 1);
+        NetworkCard a = firstCard[clientId];
+        NetworkCard b = secondCard[clientId];
 
-            // Marcar cartas como emparejadas
-            firstFlipped.SetMatchedClientRpc();
-            secondFlipped.SetMatchedClientRpc();
+        if (a == null || b == null)
+            yield break;
+
+        if (a.cardId.Value == b.cardId.Value)
+        {
+            AddScoreToPlayerSimple(clientId);
+
+            a.SetMatchedServerRpc();
+            b.SetMatchedServerRpc();
         }
         else
         {
-            // No coinciden: mostrar un momento y luego ocultar
             yield return new WaitForSeconds(mismatchRevealTime);
-            firstFlipped.HideClientRpc();
-            secondFlipped.HideClientRpc();
+            a.HideServerRpc();
+            b.HideServerRpc();
         }
 
-        firstFlipped = null;
-        secondFlipped = null;
+        firstCard[clientId] = null;
+        secondCard[clientId] = null;
 
-        // Comprobar fin de juego
         if (spawnedCards.All(c => c.isMatched.Value))
         {
-            GameOverClientRpc();
+            Debug.Log("Juego terminado");
+            GameOverClientRpc(scoreP1.Value, scoreP2.Value);
         }
     }
 
-    void AddScoreToPlayer(ulong clientId, int amount)
+    void AddScoreToPlayerSimple(ulong clientId)
     {
-        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var client))
-        {
-            var go = client.PlayerObject != null ? client.PlayerObject.gameObject : null;
-            if (go != null)
-            {
-                var np = go.GetComponent<NetworkPlayer>();
-                if (np != null)
-                    np.score.Value += amount; // NetworkVariable actualiza automáticamente en todos los clientes
-            }
-        }
+        if (clientId == NetworkManager.Singleton.LocalClientId && IsServer)
+            scoreP1.Value++;
+        else
+            scoreP2.Value++;
     }
 
     [ClientRpc]
-    void GameOverClientRpc()
+    void GameOverClientRpc(int finalScoreP1, int finalScoreP2)
     {
-        UIManager.Instance?.ShowGameOver();
+        UIManager.Instance?.ShowWinner(finalScoreP1, finalScoreP2);
     }
 }

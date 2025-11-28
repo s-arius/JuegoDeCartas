@@ -31,7 +31,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.2, y: 0.2, z: 0.2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
@@ -56,6 +56,8 @@ SpriteRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -77,6 +79,7 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -121,7 +124,7 @@ BoxCollider2D:
   m_CallbackLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
@@ -135,7 +138,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 2, y: 2}
   m_EdgeRadius: 0
 --- !u!114 &4020621285042618953
 MonoBehaviour:
@@ -181,8 +184,14 @@ MonoBehaviour:
     m_InternalValue: 0
   isMatched:
     m_InternalValue: 0
-  frontSprite: {fileID: -6878707427244668736, guid: 01dbbebfc8158514685384f0f4002bc7, type: 3}
-  backSprite: {fileID: -8163468367392968813, guid: 749565b62ff5665488d5acc7db588a85, type: 3}
+  backSprite: {fileID: -445641782727305962, guid: e2c7d7c27fb667e4abeada72aad0a4c0, type: 3}
+  cardFaces:
+  - {fileID: -3490762545701616183, guid: 57de011e95476c5499b446dccda7a1b8, type: 3}
+  - {fileID: 5185711020183576066, guid: 220de924a5f5d2a44ab41a3dc1416dd2, type: 3}
+  - {fileID: 6961415955281988581, guid: 58499d497f77d4b42b790e98523c4a1e, type: 3}
+  - {fileID: -7877504812690374067, guid: a22278b3aa9bc204481e59d05aa7c438, type: 3}
+  - {fileID: 2056511664156610092, guid: ce21c598a2cdd8649ac2825c6d2ad38b, type: 3}
+  - {fileID: -2065140599425078698, guid: 967189dcc60aee843ba467ab25630f1d, type: 3}
 --- !u!50 &3027892214043214786
 Rigidbody2D:
   serializedVersion: 5
